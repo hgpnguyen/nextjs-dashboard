@@ -152,10 +152,10 @@ async function seedRevenue() {
     throw error;
   }
 }
-
+*/
 export async function GET() {
-
-  try {
+  return Response.json({ message: 'Delete this to seed database' });
+  /*try {
     console.log('test');
     await seedUsers();
     console.log('user success');
@@ -172,5 +172,5 @@ export async function GET() {
   } catch (error) {
     await client.query(`ROLLBACK`);
     return Response.json({ error }, { status: 500 });
-  }
-}*/
+  }*/
+}
