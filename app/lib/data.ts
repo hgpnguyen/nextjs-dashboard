@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres';
+//import { sql } from '@vercel/postgres';
 import {
   CustomerField,
   CustomersTableType,
@@ -8,18 +8,66 @@ import {
   Revenue,
 } from './definitions';
 import { formatCurrency } from './utils';
+import { Pool, QueryResultRow } from 'pg';
+
+const pool = new Pool({
+  host: process.env.POSTGRES_HOST,
+  user: process.env.POSTGRES_USER,
+  password: process.env.POSTGRES_PASSWORD,
+  database: process.env.POSTGRES_DATABASE,
+  port: 5432
+});
+
+type Primitive = string | number | boolean | undefined | null;
+
+function sqlTemplate(
+  strings: TemplateStringsArray,
+  ...values: Primitive[]
+): [string, Primitive[]] {
+  if (!isTemplateStringsArray(strings) || !Array.isArray(values)) {
+    throw new Error(
+      'It looks like you tried to call `sql` as a function. Make sure to use it as a tagged template.\n' +
+        "\tExample: sql`SELECT * FROM users`, not sql('SELECT * FROM users')",
+    );
+  }
+
+  let result = strings[0] ?? '';
+
+  for (let i = 1; i < strings.length; i++) {
+    result += `$${i}${strings[i] ?? ''}`;
+  }
+
+  return [result, values];
+}
+
+function isTemplateStringsArray(
+  strings: unknown,
+): strings is TemplateStringsArray {
+  return (
+    Array.isArray(strings) && 'raw' in strings && Array.isArray(strings.raw)
+  );
+}
+
+export async function sql<O extends QueryResultRow>(
+  strings: TemplateStringsArray,
+  ...values: Primitive[]
+) {
+  const [query, params] = sqlTemplate(strings, ...values);
+
+  return pool.query<O>(query, params);
+}
 
 export async function fetchRevenue() {
   try {
     // Artificially delay a response for demo purposes.
     // Don't do this in production :)
 
-    // console.log('Fetching revenue data...');
-    // await new Promise((resolve) => setTimeout(resolve, 3000));
+    console.log('Fetching revenue data...');
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     const data = await sql<Revenue>`SELECT * FROM revenue`;
 
-    // console.log('Data fetch completed after 3 seconds.');
+    console.log('Data fetch completed after 3 seconds.');
 
     return data.rows;
   } catch (error) {
@@ -30,6 +78,7 @@ export async function fetchRevenue() {
 
 export async function fetchLatestInvoices() {
   try {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
     const data = await sql<LatestInvoiceRaw>`
       SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
       FROM invoices
@@ -53,6 +102,7 @@ export async function fetchCardData() {
     // You can probably combine these into a single SQL query
     // However, we are intentionally splitting them to demonstrate
     // how to initialize multiple queries in parallel with JS.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     const invoiceCountPromise = sql`SELECT COUNT(*) FROM invoices`;
     const customerCountPromise = sql`SELECT COUNT(*) FROM customers`;
     const invoiceStatusPromise = sql`SELECT
@@ -157,7 +207,7 @@ export async function fetchInvoiceById(id: string) {
       // Convert amount from cents to dollars
       amount: invoice.amount / 100,
     }));
-
+    console.log(invoice);
     return invoice[0];
   } catch (error) {
     console.error('Database Error:', error);
